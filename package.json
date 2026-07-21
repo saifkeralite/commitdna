@@ -1,0 +1,70 @@
+{
+  "name": "commitDNA",
+  "displayName": "commitDNA",
+  "description": "Review Git author, email, branch, and commit details immediately after each commit.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "activationEvents": [
+    "onCommand:git.commit"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": []
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saifkeralite/commitDNA"
+  },
+  "bugs": {
+    "url": "https://github.com/saifkeralite/commitDNA/issues"
+  },
+  "scripts": {
+    "vscode:prepublish": "yarn run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "yarn run compile-tests && yarn run compile && yarn run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "@types/vscode": "^1.125.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
+    "eslint": "^10.5.0",
+    "ts-loader": "^9.6.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "webpack": "^5.107.2",
+    "webpack-cli": "^7.0.3"
+  },
+  "overrides": {
+    "diff": "^8.0.4",
+    "serialize-javascript": "^7.0.6"
+  },
+  "keywords": [
+    "git",
+    "commit",
+    "push",
+    "author",
+    "email",
+    "review",
+    "identity",
+    "source-control"
+  ],
+  "icon": "images/icon.png",
+  "license": "MIT",
+  "publisher": "Saifkeralite",
+  "dependencies": {
+    "@vscode/vsce": "^3.9.2"
+  }
+}
