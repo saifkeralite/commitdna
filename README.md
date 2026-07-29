@@ -1,6 +1,10 @@
 # commitDNA
 
-**commitDNA** helps you verify your Git identity immediately after every commit. It displays the Git author, email, branch, and commit information so you can quickly confirm you're committing with the correct Git configuration before pushing changes to a remote repository.
+**commitDNA** is a simple Visual Studio Code extension that helps you check your Git username and email before you push your code.
+
+Sometimes we accidentally commit using the wrong Git username or email. If those commits are pushed to the remote repository, fixing them later can be difficult and time-consuming.
+
+CommitDNA shows your Git username, email, branch, and commit details after every commit, so you can quickly verify everything is correct before pushing your changes.
 
 ---
 
@@ -14,16 +18,6 @@
 - 📁 Open the repository directly from the review panel.
 - 🚀 Lightweight and runs locally.
 - 🔒 No telemetry or external network requests.
-
----
-
-## 📸 Preview
-
-Example:
-
-```markdown
-![Commit Review](images/screenshot.png)
-```
 
 ---
 

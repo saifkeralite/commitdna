@@ -7,6 +7,9 @@ export class CommitReviewPanel {
     private readonly panel: vscode.WebviewPanel;
     private readonly extensionUri: vscode.Uri;
     private readonly disposables: vscode.Disposable[] = [];
+    private repositoryPath = "";
+    private onSave: (name: string, email: string) => Promise<void>;
+
     private getNonce(): string {
         const chars =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -28,11 +31,17 @@ export class CommitReviewPanel {
             .replace(/'/g, "&#39;");
     }
 
-    public static show(extensionUri: vscode.Uri, data: CommitReviewData): void {
+    public static show(
+        extensionUri: vscode.Uri,
+        data: CommitReviewData,
+        onSave: (name: string, email: string) => Promise<void>
+    ): void {
         const column = vscode.ViewColumn.Beside;
 
         if (CommitReviewPanel.currentPanel) {
             CommitReviewPanel.currentPanel.panel.reveal(column);
+
+            CommitReviewPanel.currentPanel.onSave = onSave;
 
             CommitReviewPanel.currentPanel.update(data);
 
@@ -52,25 +61,31 @@ export class CommitReviewPanel {
         CommitReviewPanel.currentPanel = new CommitReviewPanel(
             panel,
             extensionUri,
-            data
+            data,
+            onSave
         );
     }
 
     private constructor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
-        data: CommitReviewData
+        data: CommitReviewData,
+        onSave: (name: string, email: string) => Promise<void>
     ) {
         this.panel = panel;
         this.extensionUri = extensionUri;
-
+        this.onSave = onSave;
         this.update(data);
 
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
 
         this.panel.webview.onDidReceiveMessage(
             async (message) => {
-                if (typeof message !== "object" || message === null) {
+                if (
+                    typeof message !== "object" ||
+                    message === null ||
+                    Array.isArray(message)
+                ) {
                     return;
                 }
 
@@ -78,12 +93,12 @@ export class CommitReviewPanel {
                     return;
                 }
 
-                if (typeof message.value !== "string") {
-                    return;
-                }
-
                 switch (message.command) {
-                    case "copyCommit":
+                    case "copyCommit": {
+                        if (typeof message.value !== "string") {
+                            return;
+                        }
+
                         await vscode.env.clipboard.writeText(message.value);
 
                         vscode.window.showInformationMessage(
@@ -91,14 +106,47 @@ export class CommitReviewPanel {
                         );
 
                         break;
+                    }
 
-                    case "openRepository":
-                        vscode.commands.executeCommand(
+                    case "openRepository": {
+                        if (!this.repositoryPath) {
+                            return;
+                        }
+
+                        const repositoryUri = vscode.Uri.file(
+                            this.repositoryPath
+                        );
+
+                        await vscode.commands.executeCommand(
                             "revealFileInOS",
-                            vscode.Uri.file(message.value)
+                            repositoryUri
                         );
 
                         break;
+                    }
+                    case "saveGitConfig": {
+                        if (typeof message.name !== "string") {
+                            return;
+                        }
+
+                        if (typeof message.email !== "string") {
+                            return;
+                        }
+
+                        await this.onSave(
+                            message.name.trim(),
+                            message.email.trim()
+                        );
+
+                        vscode.window.showInformationMessage(
+                            "Git configuration updated."
+                        );
+
+                        break;
+                    }
+
+                    default:
+                        return;
                 }
             },
             null,
@@ -107,6 +155,9 @@ export class CommitReviewPanel {
     }
 
     private update(data: CommitReviewData): void {
+        // Store it only inside the extension.
+        this.repositoryPath = data.repositoryPath;
+
         this.panel.webview.html = this.getHtml(data);
     }
 
@@ -129,11 +180,18 @@ export class CommitReviewPanel {
     http-equiv="Content-Security-Policy"
     content="
         default-src 'none';
-        style-src 'unsafe-inline';
+        base-uri 'none';
+        form-action 'none';
+        object-src 'none';
+        frame-src 'none';
+        connect-src 'none';
+        img-src 'none';
+        font-src 'none';
+        style-src 'nonce-${nonce}';
         script-src 'nonce-${nonce}';
     "
 >
-<style>
+<style nonce="${nonce}">
 
 :root{
     color-scheme: dark;
@@ -222,6 +280,33 @@ button{
 
     color:white;
 }
+    .textbox{
+
+    width:100%;
+
+    box-sizing:border-box;
+
+    padding:10px;
+
+    border-radius:6px;
+
+    border:1px solid #444;
+
+    background:#1e1e1e;
+
+    color:white;
+
+    margin-bottom:16px;
+
+    outline:none;
+
+}
+
+.textbox:focus{
+
+    border-color:#0078d4;
+
+}
 
 </style>
 
@@ -242,20 +327,30 @@ button{
     <div class="value">${this.escapeHtml(data.repositoryName)}
     </div>
  <div class="label">
-        Author
-    </div>
+    Author
+</div>
 
-    <div class="value">
-    ${this.escapeHtml(data.Author)}
-    </div>
+<input
+    id="authorInput"
+    class="textbox"
+    maxlength="100"
+    spellcheck="false"
+    autocomplete="off"
+    value="${this.escapeHtml(data.Author)}"
+/>
 
-    <div class="label">
-        Email
-    </div>
+  <div class="label">
+    Email
+</div>
 
-    <div class="value">
-         ${this.escapeHtml(data.Email)}
-    </div>
+<input
+    id="emailInput"
+    class="textbox"
+    maxlength="100"
+    spellcheck="false"
+    autocomplete="off"
+    value="${this.escapeHtml(data.Email)}"
+/>
     <div class="label">
         Branch
     </div>
@@ -277,37 +372,68 @@ button{
 </div>
 
 <button
+    id="copyCommitButton"
     class="primary"
-    onclick="copyCommit()"
 >
     Copy Commit
 </button>
 
+<button
+    id="openRepositoryButton"
+    class="secondary"
+>
+    Open Repository
+</button>
+<button
+    id="saveButton"
+    class="primary"
+>
+    Save
+</button>
 
 <script nonce="${nonce}">
+const vscode = Object.freeze(acquireVsCodeApi());
 
-const vscode = acquireVsCodeApi();
+document
+.getElementById("saveButton")
+.addEventListener("click",()=>{
 
-function copyCommit(){
+    const name =
+        document
+        .getElementById("authorInput")
+        .value
+        .trim();
+
+    const email =
+        document
+        .getElementById("emailInput")
+        .value
+        .trim();
+
+    if(name.length===0){
+
+        return;
+
+    }
+
+    if(email.length===0){
+
+        return;
+
+    }
 
     vscode.postMessage({
 
-        command:"copyCommit"
+        command:"saveGitConfig",
+
+
+        name,
+
+        email
 
     });
 
-}
-
-function openRepository(){
-
-    vscode.postMessage({
-
-        command:"openRepository"
-
-    });
-
-}
-
+});
 </script>
 
 </body>

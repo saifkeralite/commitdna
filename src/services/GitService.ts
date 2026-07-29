@@ -1,10 +1,12 @@
 import * as vscode from "vscode";
 import { GitExtension, GitAPI, Repository, GitConfigKey } from "../types/git";
 import { CommitReviewPanel } from "../ui/CommitReviewPanel";
+import { GitConfig } from "../utils/gitConfig";
 
 export class GitService implements vscode.Disposable {
     private readonly disposables: vscode.Disposable[] = [];
     private readonly previousCommits = new Map<string, string | undefined>();
+    private readonly previousIndexChanges = new Map<string, string[]>();
     private readonly monitoredRepositories = new Set<string>();
 
     constructor(private readonly context: vscode.ExtensionContext) {}
@@ -98,6 +100,7 @@ export class GitService implements vscode.Disposable {
                     this.previousCommits.delete(repositoryPath);
 
                     this.monitoredRepositories.delete(repositoryPath);
+                    this.previousIndexChanges.delete(repositoryPath);
                 })
             );
         }
@@ -116,6 +119,10 @@ export class GitService implements vscode.Disposable {
         this.monitoredRepositories.add(repositoryPath);
 
         this.previousCommits.set(repositoryPath, repository.state.HEAD?.commit);
+        this.previousIndexChanges.set(
+            repositoryPath,
+            repository.state.indexChanges.map((change) => change.uri.toString())
+        );
 
         const disposable = repository.state.onDidChange(async () => {
             try {
@@ -140,6 +147,67 @@ export class GitService implements vscode.Disposable {
 
         const currentCommit = repository.state.HEAD?.commit;
 
+        // ======================================================
+        // NEW: Detect newly staged files
+        // ======================================================
+
+        const previousIndex =
+            this.previousIndexChanges.get(repositoryPath) ?? [];
+
+        const currentIndex = repository.state.indexChanges.map((change) =>
+            change.uri.toString()
+        );
+
+        const newlyStaged = currentIndex.filter(
+            (file) => !previousIndex.includes(file)
+        );
+
+        // NEW: Save current staged files for the next comparison
+        this.previousIndexChanges.set(repositoryPath, currentIndex);
+
+        // NEW: Show popup only when new files are staged
+        if (newlyStaged.length > 0) {
+            const gitUser = await this.getGitUser(repository);
+
+            const action = await vscode.window.showInformationMessage(
+                `commitDNA • ${newlyStaged.length} file(s) staged by ${gitUser.name}`,
+                "Review",
+                "Dismiss"
+            );
+
+            if (action === "Review") {
+                CommitReviewPanel.show(
+                    this.context.extensionUri,
+                    {
+                        Author: gitUser.name,
+
+                        Email: gitUser.email,
+
+                        repositoryName:
+                            repository.rootUri.path.split("/").pop() ??
+                            "Unknown",
+
+                        branchName: repository.state.HEAD?.name ?? "Unknown",
+
+                        commitHash: currentCommit ?? "No commit yet",
+
+                        repositoryPath: repository.rootUri.fsPath,
+                    },
+                    async (name, email) => {
+                        await GitConfig.updateLocalUser(
+                            repository,
+                            name,
+                            email
+                        );
+
+                        vscode.window.showInformationMessage(
+                            "Git configuration updated."
+                        );
+                    }
+                );
+            }
+        }
+
         /**
          * Commit detected
          */
@@ -159,20 +227,37 @@ export class GitService implements vscode.Disposable {
             );
 
             if (action === "Review") {
-                CommitReviewPanel.show(this.context.extensionUri, {
-                    Author: gitUser.name,
+                CommitReviewPanel.show(
+                    this.context.extensionUri,
+                    {
+                        Author: gitUser.name,
 
-                    Email: gitUser.email,
-                    repositoryName:
-                        repository.rootUri.path.split("/").pop() ?? "Unknown",
+                        Email: gitUser.email,
 
-                    branchName: repository.state.HEAD?.name ?? "Unknown",
+                        repositoryName:
+                            repository.rootUri.path.split("/").pop() ??
+                            "Unknown",
 
-                    commitHash: currentCommit,
+                        branchName: repository.state.HEAD?.name ?? "Unknown",
 
-                    repositoryPath: repository.rootUri.fsPath,
-                });
+                        commitHash: currentCommit ?? "No commit yet",
+
+                        repositoryPath: repository.rootUri.fsPath,
+                    },
+                    async (name, email) => {
+                        await GitConfig.updateLocalUser(
+                            repository,
+                            name,
+                            email
+                        );
+
+                        vscode.window.showInformationMessage(
+                            "Git configuration updated."
+                        );
+                    }
+                );
             }
+
             return;
         }
 
