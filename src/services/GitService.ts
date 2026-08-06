@@ -169,43 +169,32 @@ export class GitService implements vscode.Disposable {
         if (newlyStaged.length > 0) {
             const gitUser = await this.getGitUser(repository);
 
-            const action = await vscode.window.showInformationMessage(
-                `commitDNA • ${newlyStaged.length} file(s) staged by ${gitUser.name}`,
-                "Review",
-                "Dismiss"
+            // if (action === "Review") {
+            CommitReviewPanel.show(
+                this.context.extensionUri,
+                {
+                    Author: gitUser.name,
+
+                    Email: gitUser.email,
+
+                    repositoryName:
+                        repository.rootUri.path.split("/").pop() ?? "Unknown",
+
+                    branchName: repository.state.HEAD?.name ?? "Unknown",
+
+                    commitHash: currentCommit ?? "No commit yet",
+
+                    repositoryPath: repository.rootUri.fsPath,
+                },
+                async (name, email) => {
+                    await GitConfig.updateLocalUser(repository, name, email);
+
+                    vscode.window.showInformationMessage(
+                        "Git configuration updated."
+                    );
+                }
             );
-
-            if (action === "Review") {
-                CommitReviewPanel.show(
-                    this.context.extensionUri,
-                    {
-                        Author: gitUser.name,
-
-                        Email: gitUser.email,
-
-                        repositoryName:
-                            repository.rootUri.path.split("/").pop() ??
-                            "Unknown",
-
-                        branchName: repository.state.HEAD?.name ?? "Unknown",
-
-                        commitHash: currentCommit ?? "No commit yet",
-
-                        repositoryPath: repository.rootUri.fsPath,
-                    },
-                    async (name, email) => {
-                        await GitConfig.updateLocalUser(
-                            repository,
-                            name,
-                            email
-                        );
-
-                        vscode.window.showInformationMessage(
-                            "Git configuration updated."
-                        );
-                    }
-                );
-            }
+            // }
         }
 
         /**
@@ -222,41 +211,8 @@ export class GitService implements vscode.Disposable {
 
             const action = await vscode.window.showInformationMessage(
                 `commitDNA • Commit by ${gitUser.name}, Email: ${gitUser.email}`,
-                "Review",
                 "Dismiss"
             );
-
-            if (action === "Review") {
-                CommitReviewPanel.show(
-                    this.context.extensionUri,
-                    {
-                        Author: gitUser.name,
-
-                        Email: gitUser.email,
-
-                        repositoryName:
-                            repository.rootUri.path.split("/").pop() ??
-                            "Unknown",
-
-                        branchName: repository.state.HEAD?.name ?? "Unknown",
-
-                        commitHash: currentCommit ?? "No commit yet",
-
-                        repositoryPath: repository.rootUri.fsPath,
-                    },
-                    async (name, email) => {
-                        await GitConfig.updateLocalUser(
-                            repository,
-                            name,
-                            email
-                        );
-
-                        vscode.window.showInformationMessage(
-                            "Git configuration updated."
-                        );
-                    }
-                );
-            }
 
             return;
         }
